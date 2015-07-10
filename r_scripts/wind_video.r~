@@ -1,0 +1,74 @@
+#Setting the home folder
+#---------------------------------------#
+tmp = system('ls /home/', intern=T)
+if(length(which(tmp == 'adam')) > 0){home = 'adam'}
+if(length(which(tmp == 'ender')) > 0){home = 'ender'}
+#---------------------------------------#
+
+#Libraries and functions
+#---------------------------------------#
+source(paste('/home/',home,'/Dropbox/sapflow/r_scripts/fun/climread.r',sep=''))
+library(openair)
+library(jpeg)
+#---------------------------------------#
+
+#Directories
+#---------------------------------------#
+cdir = '/home/adam/Dropbox/sapflow/clim_screened/'
+destdir = '/home/adam/Dropbox/sapflow/temp/pww_wind/'
+dates = '20141210'
+#---------------------------------------#
+
+#Station names
+#---------------------------------------#
+statnames = c('Laupahoehoe','Mamalahoa','Palamanui','PuuWaawaa')
+#---------------------------------------#
+
+#Reading the files in 
+#---------------------------------------#
+load(paste(cdir,'all_stations_',dates,'.Rdat',sep=''))
+#---------------------------------------#
+
+
+#WIND SPEED JPEGS
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+dat = slist$pww
+days = sort(unique(substr(dat$yyyy.mm.dd.hh.mm,1,10)))
+
+for(i in 1:length(days)){
+
+	jpeg(filename = paste(destdir,'wind_',sprintf('%04d',i),'.jpeg',sep=''),width = 600, height = 600)
+
+	winddat = dat[which(substr(dat$yyyy.mm.dd.hh.mm,1,10) == days[i]),]
+	
+	#Testing for daytime 
+	sunny = which(as.numeric(substr(winddat$yyyy.mm.dd.hh.mm,12,13)) >= 6 & as.numeric(substr(winddat$yyyy.mm.dd.hh.mm,12,13)) < 18)
+	
+	winddat = winddat[sunny,]
+	
+	#Sixth test: if the last 3 days are all NA
+	#...............................................#
+	if(all(is.na(winddat$WS)) | all(is.na(winddat$WD))){
+		plot(x = 1:10,y = 1:10, type = 'n',xlab = '',ylab='')
+		text(x = c(5,5), y = c(5,4), labels = c('No Data'))
+	}else{
+	#...............................................#
+
+#Stuff to feed in to the windRose plot
+ws = 'WS'
+wd = 'WD'
+
+title = days[i]
+
+#par(mar = c(5,4,7,2))
+windRose(winddat, ws = ws, wd = wd, main = title, font.main = 2, cex.main = 5, angle = 10,col = c('green','yellow','red','darkred','black'),paddle = FALSE,statistic = 'abs.count')
+
+#mtext(text = bquote(underline(paste(.((days[i]),sep='')))),cex = 2, font = 2, outer = F,line =29)
+#mtext(text = 'PWW',outer = F, line = 30, cex = 1, adj = 0,font = 2)
+}
+
+dev.off()
+}
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+

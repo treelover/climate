@@ -1,0 +1,39 @@
+climread = function(loc){
+#This function based on the sapread function. 
+#loc = '/home/adam/Dropbox/sapflow/clim/IPIF_MetData.dat'
+
+#Reading in the data
+dat = read.table(loc, sep = ',', skip =4, header = F)
+
+#Creating a timestamp record that is POSIX format
+ptime = strptime(dat[,1],'%Y-%m-%d %H:%M:%S')
+
+#Converting timestamp to character
+dat$V1 = as.character(dat$V1)
+
+#Headers
+header1 = as.character(as.matrix(read.table(loc, sep = ',', nrows = 1, header = F)))
+header2 = as.character(as.matrix(read.table(loc, sep = ',', skip = 1, nrows = 1, header = F)))
+header3 = as.character(as.matrix(read.table(loc, sep = ',', skip = 2, nrows = 1, header = F)))
+header4 = as.character(as.matrix(read.table(loc, sep = ',', skip = 3, nrows = 1, header = F)))
+header4[header4 == "“NA”"] = ""
+
+#Packaging the data into a list 
+x = list(dat,header1,header2,header3,header4,ptime)
+names(x) = c('dat','header1','header2','header3','header4','time')
+
+return(x)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,336 @@
+#This script checks for a weeks worth of data in the /Dropbox/sapflow/clim/ folder. It analyzes the 
+#data for gaps and creates a report of what has been zipped for each station. 
+#LAST MODIFIED: June 30th, 2014
+#AUTHOR: Adam Sibley
+#==================================================================================================#
+
+#Setting the home folder
+#---------------------------------------#
+tmp = system('ls /home/', intern=T)
+if(length(which(tmp == 'adam')) > 0){home = 'adam'}
+if(length(which(tmp == 'ender')) > 0){home = 'ender'}
+#---------------------------------------#
+
+
+#Functions and libraries
+#---------------------------------------#
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/climread.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/climwrite.r')
+#---------------------------------------#
+
+
+#Directories
+#---------------------------------------#
+cdir = '/home/adam/Dropbox/sapflow/clim/'
+czipdir = '/home/adam/Dropbox/sapflow/climzip/'
+tempdir = '/home/adam/Dropbox/sapflow/climzip/temp/'
+dropdir = '/home/adam/Dropbox/Big\ Island\ PI\ Access/Recent\ Station\ Downloads/'
+dropdirwin = '/home/adam/Dropbox/Big\\ Island\\ PI\\ Access/Recent\\ Station\\ Downloads/'
+#---------------------------------------#
+
+#Getting the timeframe for the data to be zipped
+#---------------------------------------#
+#system time, hour rounded
+stime = Sys.time()
+
+#now, back one day 
+now = as.POSIXct(paste(substr(stime,1,10),'00:00:00'))-(10*60)
+
+#then, back eight days, foreward one entry
+then = as.POSIXct(paste(substr(stime,1,10),'00:00:00'))-(60*60*24*7)
+
+zips = list.files(dropdir)
+zips = sort(as.POSIXct(substr(zips,1,8),format = '%Y%m%d'),na.last = NA)
+lastzip = tail(zips,1)
+#The last zip file will be named with the date of prev. saturday. "Then" is date of prev. sunday.
+#So, compare "lastzip" plus a day to "then". If "lastzip" is earlier, go back to that date.
+if(lastzip+(60*60*24) < then){then = lastzip+(60*60*24)}
+#---------------------------------------#
+
+#OK, before anything else, lets check that this hasn't already been done (by the other computer)
+#If it has, cancel execution
+if(file.exists(paste(tempdir,gsub('-','',substr(now,1,10)),'.zip',sep=''))){q()}
+if(file.exists(paste(tempdir,gsub('-','',substr(now,1,10)),'.zip',sep=''))){q()}
+
+#Setting up the log file
+#----------------------------------------#
+out= paste('WEEKLY BACKUP',substr(then,1,10),'to',substr(now,1,10))
+out[length(out)+1] = ''
+#----------------------------------------#
+
+#Listing the stations
+#----------------------------------------#
+stations = c('Hakalau','IPIF','Kiholo','Laupahoehoe','Mamalahoa','Palamanui','PuuWaawaa','Spencer')
+#----------------------------------------#
+
+#Loopin'
+#---------------------------------------#
+for(i in 1:length(stations)){
+
+	#Met data
+	#-----------------------------------------------------------#
+	if(!file.exists(paste(cdir,stations[i],'_MetData.dat',sep=''))){out[length(out)+1] = paste(stations[i],'_MetData.dat not found. Nothing transferred.',sep='')
+	} else{	
+	
+		met = climread(paste(cdir,stations[i],'_MetData.dat',sep=''))
+
+		#range of data. d1 will be one week ago (or last zip date), or the first entry in the dataset if one week ago
+		#cannot be found. d2 will be one day ago, or the last entry. 
+		#This means that if the searched for bit of data is missing, a potentially large amount of data
+		#will be written.  Better than too little. 
+		d1 = 1
+		d2 = length(met$time)
+		if(length(which(met$time == then)) != 0){d1 = which(met$time == then)}
+		if(length(which(met$time == now)) != 0){d2 = which(met$time == now)}
+		drange = d1:d2
+
+		#Cutting the data down to that range
+		met$dat = met$dat[drange,]
+
+		#Writing it out
+		writefile = paste(tempdir,stations[i],'_MetData.dat',sep='')
+		climwrite(met,writefile)
+	
+		#Error reporting
+		if(file.exists(writefile)) {tempout1 = paste(stations[i],'_MetData.dat moved successfully',sep='')}
+		if(file.exists(writefile) == F) {tempout1 = paste(stations[i],'_MetData.dat move failed')}
+		out[length(out)+1] = paste(tempout1,' - ',length(seq(then,now,60*10))
+-length(drange),' records missing',sep='')
+	}
+	#-----------------------------------------------------------#
+		
+	#System info
+	#-----------------------------------------------------------#
+	if(!file.exists(paste(cdir,stations[i],'_SysInfo.dat',sep=''))){
+		out[length(out)+1] = paste(stations[i],'_SysInfo.dat not found. Nothing transferred.',sep='')
+		} else{
+		
+		sys = climread(paste(cdir,stations[i],'_SysInfo.dat',sep=''))
+	
+		#range of data 
+		d1 = 1
+		d2 = length(sys$time)
+		if(length(which(sys$time == then)) != 0){d1 = which(sys$time == then)}
+		if(length(which(sys$time == now)) != 0){d2 = which(sys$time == now)}
+		drange = d1:d2
+
+		#Cutting the data down to that range
+		sys$dat = sys$dat[drange,]
+	
+		#Writing it out
+		writefile = paste(tempdir,stations[i],'_SysInfo.dat',sep='')
+		climwrite(sys,writefile)
+	
+		#Error reporting
+		if(file.exists(writefile)) {tempout1 = paste(stations[i],'_SysInfo.dat moved successfully',sep='')}
+		if(file.exists(writefile) == F) {tempout1 = paste(stations[i],'_SysInfo.dat move failed')}
+		out[length(out)+1] = paste(tempout1,' - ',length(seq(then,now,60*10))
+-length(drange),' records missing',sep='')
+	}
+	#-----------------------------------------------------------#
+
+	#Daily totals
+	#-----------------------------------------------------------#
+	if(!file.exists(paste(cdir,stations[i],'_DailyTotals.dat',sep=''))){
+	out[length(out)+1] = paste(stations[i],'_DailyTotals.dat not found. Nothing transferred.',sep='')
+	} else{
+	
+		day = climread(paste(cdir,stations[i],'_DailyTotals.dat',sep=''))
+	
+		#Go back one day again for "now". That way, records will be Sunday to Saturday. 
+		#nowday = now-(60*60*24)
+		nowday = as.POSIXlt(paste(substr(now,1,11),'00:00:00'))
+		thenday = as.POSIXlt(paste(substr(then,1,11),'00:00:00'))
+	
+		#range of data 
+		d1 = 1
+		d2 = length(day$time)
+		if(length(which(day$time == thenday)) != 0){d1 = which(day$time == thenday)}
+		if(length(which(day$time == nowday)) != 0){d2 = which(day$time == nowday)}
+		drange = d1:d2
+
+		#Cutting the data down to that range
+		day$dat = day$dat[drange,]
+	
+		#Writing it out
+		writefile = paste(tempdir,stations[i],'_DailyTotals.dat',sep='')
+		climwrite(day,writefile)
+	
+		#Error reporting
+		if(file.exists(writefile)) {tempout1 = paste(stations[i],'_DailyTotals.dat moved successfully',sep='')}
+		if(file.exists(writefile) == F) {tempout1 = paste(stations[i],'_DailyTotals.dat move failed')}
+		out[length(out)+1] = paste(tempout1,' - ',7-length(drange),' records missing',sep='')
+	}
+	#-----------------------------------------------------------#
+	out[length(out)+1] = ''
+}
+
+
+#Other files
+#-----------------------------------------------------------#
+out[length(out)+1] = 'THE ODDBALL FILES'
+
+#Kiholo - "Other sensors"
+if(!file.exists(paste(cdir,'Kiholo_OtherSensors.dat',sep=''))){
+	out[length(out)+1] = 'Kiholo_OtherSensors.dat not found. Nothing transferred.'
+	} else{
+	oth = climread(paste(cdir,'Kiholo_OtherSensors.dat',sep=''))
+	
+	#range of data 
+	d1 = 1
+	d2 = length(oth$time)
+	if(length(which(oth$time == then)) != 0){d1 = which(oth$time == then)}
+	if(length(which(oth$time == now)) != 0){d2 = which(oth$time == now)}
+	drange = d1:d2
+		
+	oth$dat = oth$dat[drange,]
+	writefile = paste(tempdir,'Kiholo_OtherSensors.dat',sep='')
+	climwrite(oth,writefile)
+	if(file.exists(writefile)) {tempout1 = 'Kiholo_OtherSensors.dat moved successfully'}
+	if(file.exists(writefile) == F) {tempout1 = 'Kiholo_OtherSensors.dat move failed'}
+	out[length(out)+1] = paste(tempout1,' - ',length(seq(then,now,60*10))
+-length(drange),' records missing',sep='')
+	}
+
+#Spencer - "Old Radiation"
+if(!file.exists(paste(cdir,'Spencer_OldRad.dat',sep=''))){
+	out[length(out)+1] = 'Spencer_OldRad.dat not found. Nothing transferred.'
+	} else{
+	
+	old = climread(paste(cdir,'Spencer_OldRad.dat',sep=''))
+	
+	#range of data 
+	d1 = 1
+	d2 = length(old$time)
+	if(length(which(old$time == then)) != 0){d1 = which(old$time == then)}
+	if(length(which(old$time == now)) != 0){d2 = which(old$time == now)}
+	drange = d1:d2
+
+	old$dat = old$dat[drange,]
+	writefile = paste(tempdir,'Spencer_OldRad.dat',sep='')
+	climwrite(old,writefile)
+	if(file.exists(writefile)) {tempout1 = 'Spencer_OldRad.dat moved successfully'}
+	if(file.exists(writefile) == F) {tempout1 = 'Spencer_OldRad.dat move failed'}
+	out[length(out)+1] = paste(tempout1,' - ',length(seq(then,now,60*10))
+-length(drange),' records missing',sep='')
+	}
+	out[length(out)+1] = ''	
+	
+#THE SOIL FILES - screw it, reuse the variable names
+out[length(out)+1] = 'THE SOIL FILES'
+
+#LauSoil_SoilData
+if(!file.exists(paste(cdir,'LauSoil_SoilData.dat',sep=''))){
+	out[length(out)+1] = 'LauSoil_SoilData.dat not found. Nothing transferred.'
+	} else{
+	
+	old = climread(paste(cdir,'LauSoil_SoilData.dat',sep=''))
+	
+	#range of data 
+	d1 = 1
+	d2 = length(old$time)
+	if(length(which(old$time == then)) != 0){d1 = which(old$time == then)}
+	if(length(which(old$time == now)) != 0){d2 = which(old$time == now)}
+	drange = d1:d2
+
+	old$dat = old$dat[drange,]
+	writefile = paste(tempdir,'LauSoil_SoilData.dat',sep='')
+	climwrite(old,writefile)
+	if(file.exists(writefile)) {tempout1 = 'LauSoil_SoilData.dat moved successfully'}
+	if(file.exists(writefile) == F) {tempout1 = 'LauSoil_SoilData.dat move failed'}
+	out[length(out)+1] = paste(tempout1,' - ',length(seq(then,now,60*10))
+-length(drange),' records missing',sep='')
+	}
+
+#LauSoil_SysInfo
+if(!file.exists(paste(cdir,'LauSoil_SysInfo.dat',sep=''))){
+	out[length(out)+1] = 'LauSoil_SysInfo.dat not found. Nothing transferred.'
+	} else{
+	
+	old = climread(paste(cdir,'LauSoil_SysInfo.dat',sep=''))
+	
+	#range of data 
+	d1 = 1
+	d2 = length(old$time)
+	if(length(which(old$time == then)) != 0){d1 = which(old$time == then)}
+	if(length(which(old$time == now)) != 0){d2 = which(old$time == now)}
+	drange = d1:d2
+
+	old$dat = old$dat[drange,]
+	writefile = paste(tempdir,'LauSoil_SysInfo.dat',sep='')
+	climwrite(old,writefile)
+	if(file.exists(writefile)) {tempout1 = 'LauSoil_SysInfo.dat moved successfully'}
+	if(file.exists(writefile) == F) {tempout1 = 'LauSoil_SysInfo.dat move failed'}
+	out[length(out)+1] = paste(tempout1,' - ',length(seq(then,now,60*10))
+-length(drange),' records missing',sep='')
+	}
+	
+
+#PwwSoil_SoilData
+if(!file.exists(paste(cdir,'PwwSoil_SoilData.dat',sep=''))){
+	out[length(out)+1] = 'PwwSoil_SoilData.dat not found. Nothing transferred.'
+	} else{
+	
+	old = climread(paste(cdir,'PwwSoil_SoilData.dat',sep=''))
+	
+	#range of data 
+	d1 = 1
+	d2 = length(old$time)
+	if(length(which(old$time == then)) != 0){d1 = which(old$time == then)}
+	if(length(which(old$time == now)) != 0){d2 = which(old$time == now)}
+	drange = d1:d2
+
+	old$dat = old$dat[drange,]
+	writefile = paste(tempdir,'PwwSoil_SoilData.dat',sep='')
+	climwrite(old,writefile)
+	if(file.exists(writefile)) {tempout1 = 'PwwSoil_SoilData.dat moved successfully'}
+	if(file.exists(writefile) == F) {tempout1 = 'PwwSoil_SoilData.dat move failed'}
+	out[length(out)+1] = paste(tempout1,' - ',length(seq(then,now,60*10))
+-length(drange),' records missing',sep='')
+	}
+
+#PwwSoil_SysInfo
+if(!file.exists(paste(cdir,'PwwSoil_SysInfo.dat',sep=''))){
+	out[length(out)+1] = 'PwwSoil_SysInfo.dat not found. Nothing transferred.'
+	} else{
+	
+	old = climread(paste(cdir,'PwwSoil_SysInfo.dat',sep=''))
+	
+	#range of data 
+	d1 = 1
+	d2 = length(old$time)
+	if(length(which(old$time == then)) != 0){d1 = which(old$time == then)}
+	if(length(which(old$time == now)) != 0){d2 = which(old$time == now)}
+	drange = d1:d2
+
+	old$dat = old$dat[drange,]
+	writefile = paste(tempdir,'PwwSoil_SysInfo.dat',sep='')
+	climwrite(old,writefile)
+	if(file.exists(writefile)) {tempout1 = 'PwwSoil_SysInfo.dat moved successfully'}
+	if(file.exists(writefile) == F) {tempout1 = 'PwwSoil_SysInfo.dat move failed'}
+	out[length(out)+1] = paste(tempout1,' - ',length(seq(then,now,60*10))
+-length(drange),' records missing',sep='')
+	}
+	
+#-----------------------------------------------------------#
+	
+#Writing out that old out file
+write(out,paste(tempdir,'status_file.txt',sep=''))
+
+#Zipping
+setwd(tempdir)
+allfiles = list.files(tempdir)
+system(paste('zip ',gsub('-','',substr(now,1,10)),' *',sep=''))
+
+#Moving zipped folder 
+system(paste('mv ',gsub('-','',substr(now,1,10)),'.zip ',czipdir,sep=''))
+
+#Copying data to the official folder
+system(paste('cp ',czipdir,gsub('-','',substr(now,1,10)),'.zip ',dropdirwin,sep=''))
+
+#removing all the temp files
+system(paste('rm ',tempdir,'*',sep=''))
+
+#PAU#
+	
+

@@ -1,0 +1,486 @@
+puuwaawaa_plot = function(dlist,soil,now,dayback,threeback){
+
+#dlist = dlist[[5]]
+
+#NAME: puuwaawaa
+#AUTHOR: Adam Sibley
+#LAST MODIFIED: Oct 16th, 2014
+#DESCRIPTION: Function to plot the climate variables and system status variables collected by the 
+#Puuwaawaa climate station. As of Oct 15th, 2014, the following instruments are installed and will be plotted:
+# HMP45C (2)
+#   - Air Temperature
+#   - Relative Humidity
+# NR01
+#   - SW up, SW down, LW up, LW down
+# CS700
+#   - Rainfall
+# RM Young 05106
+#   - Wind speed
+# CS616 (3)
+#   - Soil moisture
+# HFP01 (4)
+#   - Soil heat flux
+#   - Soil Temperature
+
+#Da title page
+plot(1, type="n", axes=F, xlab="", ylab="")
+mtext('Pu\'u Wa\'awa\'a',cex = 4, font = 2, outer = F,line = -10)
+
+	#First test: if there is not enough data to plot
+	#...............................................#
+	if(length(dlist$time) < (6*24*3)){
+		par(mfrow = c(1,1),mar = c(0,5,5,4),oma=c(3,0,0,0))
+		plot(x = 1:10,y = 1:10, type = 'n')
+		text(x = c(5,5), y = c(5,4), labels = c('PuuWaawaa','Less than 3 days of data. Check data file!'))
+		stop()
+	}
+	#...............................................#
+	
+	#Second test: if the last 3 days are not present in the data
+	#...............................................#
+	if(length(which(dlist$time == threeback)) == 0 | length(which(dlist$time == now)) == 0){
+		par(mfrow = c(1,1),mar = c(0,5,5,4),oma=c(3,0,0,0))
+		plot(x = 1:10,y = 1:10, type = 'n')
+		text(x = c(5,5), y = c(5,4), labels = c('PuuWaawaa','Last 3 days of data not found. Check data file!'))
+		stop()
+	}
+	#...............................................#
+	
+	#Setting up the page for Temperature and RH 
+	par(mfrow = c(2,1),mar = c(0,5,5,4),oma=c(3,0,0,0))
+	
+
+#TEMPERATURE
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#Pull out the two Temperature records
+T1 = dlist$dat[,which(dlist$header2 == 'Tair_1_Avg')]
+T2 = dlist$dat[,which(dlist$header2 == 'Tair_2_Avg')]
+	
+#Narrowing down to last three days of temp data
+T1 = T1[which(dlist$time == threeback):which(dlist$time == now)]
+T2 = T2[which(dlist$time == threeback):which(dlist$time == now)]
+
+	#Third test: if the last 3 days are all NA
+	#...............................................#
+	if(all(is.na(T1)) | all(is.na(T2))){
+		plot(x = 1:10,y = 1:10, type = 'n',xlab = '',ylab='')
+		text(x = c(5,5), y = c(5,4), labels = c('Tair_1 or Tair_2 all NA.', 'Check data file!'))
+	}else{
+	#...............................................#
+
+#Time vector
+days = dlist$time[which(dlist$time == threeback):which(dlist$time == now)]
+
+#The title
+title = 'Air Temperature'
+
+#The plot
+plot(x = days,
+y = T1,
+lwd = 3,
+type = 'l',
+col = 'black',
+xlab = '',
+ylab = 'Temperature (deg. C)',
+ylim = c(min(c(T1,T2),na.rm=T),max(c(T1,T2),na.rm=T)),
+las = 1)
+
+title(main = title, cex.main = 1.4, line = 0.5)
+
+lines(x = days, y = T2, lwd = 3, col = 'red')
+
+abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], col = 'gray')
+abline(v = dayback, col = 'black',lwd = 2)
+
+legend(x = 'topleft',fill = c('black','red'),legend = c('Tair 1','Tair 2'),bg='white')
+}
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+#Adding page title
+mtext(text = bquote(underline(paste(.(strftime(threeback,format = '%b %d')),' - ',.(strftime(dayback,format = '%b %d, %Y')),sep=''))),cex = 2, font = 2, outer = F,line = 2)
+
+#HUMIDITY
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#Pull out the two Temperature records
+R1 = dlist$dat[,which(dlist$header2 == 'RH_1_Avg')]
+R2 = dlist$dat[,which(dlist$header2 == 'RH_2_Avg')]
+
+R1 = R1[which(dlist$time == threeback):which(dlist$time == now)]
+R2 = R2[which(dlist$time == threeback):which(dlist$time == now)]
+
+	#Fourth test: if the last 3 days are all NA
+	#...............................................#
+	if(all(is.na(R1)) | all(is.na(R2))){
+		plot(x = 1:10,y = 1:10, type = 'n',xlab = '',ylab='')
+		text(x = c(5,5), y = c(5,4), labels = c('RH_1 or RH_2 all NA.', 'Check data file!'))
+	}else{
+	#...............................................#
+
+
+#Time vector
+days = dlist$time[which(dlist$time == threeback):which(dlist$time == now)]
+
+#Title
+title = 'Relative Humidity'
+
+#The plot
+plot(x = days,
+y = R1,
+lwd = 3,
+type = 'l',
+col = 'blue',
+xlab = '',
+ylab = 'Relative Humidity (%)',
+ylim = c(min(c(R1,R2),na.rm=T),max(c(R1,R2),na.rm=T)),
+las = 1)
+
+title(main = title, cex.main = 1.4, line = 1)
+
+lines(x = days, y = R2, lwd = 3, col = 'forestgreen')
+
+abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], col = 'gray')
+abline(v = dayback, col = 'black',lwd = 2)
+
+legend(x = 'topleft',fill = c('blue','forestgreen'),legend = c('RH 1','RH 2'),bg='white')
+}
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+#Setting up the next page, for the radiation and Rainfall plots
+par(mfrow = c(2,1),mar = c(0,5,5,4),oma=c(3,0,0,0))
+
+#RADIATION
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+#A little redundant, but it's how the code is written.....
+rdat = dlist$dat
+colnames(rdat) = dlist$header2
+	
+R1 = rdat$SWup_Avg[which(dlist$time == threeback):which(dlist$time == now)]
+R2 = rdat$SWdn_Avg[which(dlist$time == threeback):which(dlist$time == now)]
+R3 = rdat$LWup_Avg[which(dlist$time == threeback):which(dlist$time == now)]
+R4 = rdat$LWdn_Avg[which(dlist$time == threeback):which(dlist$time == now)]
+	
+	#Fourth test: if the last 3 days are all NA
+	#...............................................#
+	if(all(is.na(R1))){
+		plot(x = 1:10,y = 1:10, type = 'n',xlab = '',ylab='')
+		text(x = c(5,5), y = c(5,4), labels = c('SWup all NA.', 'Check data file!'))
+	}else{
+	#...............................................#
+	
+#Title
+title = paste('Radiation ',strftime(threeback,format = '%b %d'),' - ',strftime(dayback,format = '%b %d, %Y'),sep='')
+
+#Plotting the SW up data by itself, as it is an order of magnitude larger than the others
+plot(x = days,
+y = R1,
+lwd = 3,
+type = 'n',
+col = 'blue',
+xlab = '',
+ylab = 'Radiation (W/m^2)',
+ylim = c(min(R1,na.rm=T),max(R1,na.rm=T)),
+las = 1)
+	
+title(main = title, cex.main = 1.4, line = 0.5)
+	
+abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], h = seq(-1000,2000,200), col = 'gray')
+abline(v = dayback, col = 'black',lwd = 2)
+
+lines(x = days, y = R1, lwd = 3, col = 'blue')
+
+legend(x = 'topleft',fill = 'blue',legend = 'SW up',bg='white')
+	}
+
+	#Fifth test: if the last 3 days are all NA
+	#...............................................#
+	if(all(is.na(R2)) | all(is.na(R3)) | all(is.na(R4))){
+		plot(x = 1:10,y = 1:10, type = 'n',xlab = '',ylab='')
+		text(x = c(5,5), y = c(5,4), labels = c('SWdn, LWup, or LWdn all NA.', 'Check data file!'))
+	}else{
+	#...............................................#	
+
+#The Plot
+plot(x = days,
+y = R2,
+lwd = 3,
+type = 'n',
+col = 'red',
+xlab = '',
+ylab = 'Radiation (W/m^2)',
+ylim = c(min(c(R2,R3,R4),na.rm=T),max(c(R2,R3,R4),na.rm=T)),
+las = 1)
+
+lines(x = days, y = R2, lwd = 3, col = 'red')
+lines(x = days, y = R3, lwd = 3, col = 'forestgreen')
+lines(x = days, y = R4, lwd = 3, col = 'darkmagenta')
+
+title(main = title, cex.main = 1.4, line = 0.5)
+	
+abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], h = seq(-1000,2000,200), col = 'gray')
+abline(v = dayback, col = 'black',lwd = 2)
+
+legend(x = 'topleft',fill = c('red','forestgreen','darkmagenta'),legend = c('SW down','LW up','LW down'),bg='white')
+	
+#Adding page title
+#mtext(text = bquote(underline(.(statnames[i]))),cex = 2, font = 2, outer = F,line = 2)
+	}
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+#Adding page title
+#mtext(text = bquote(underline(.(statname))),cex = 2, font = 2, outer = F,line = 2)
+
+#Setting up the page for Rainfall and Soil Moisture
+par(mfrow = c(2,1),mar = c(0,5,5,4),oma=c(3,0,0,0))
+
+#RAINFALL
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+#Pulling out the rainfall data
+rdat = dlist$dat
+colnames(rdat) = dlist$header2
+	
+R1 = rdat$Rainfall_Tot[which(dlist$time == dayback):which(dlist$time == now)]
+
+	#Sixth test: if the last 3 days are all NA
+	#...............................................#
+	if(all(is.na(R1))){
+		plot(x = 1:10,y = 1:10, type = 'n',xlab = '',ylab='')
+		text(x = c(5,5), y = c(5,4), labels = c('Rainfall all NA.', 'Check data file!'))
+	}else{
+	#...............................................#
+	
+#Making it cumulative
+for(j in 2:length(R1)){R1[j] = R1[j]+R1[j-1]}
+	
+#Title
+title = paste('Cumulative Rainfall ',strftime(dayback,format = '%B %d, %Y'),sep='')
+
+plot(x = seconddays,
+y = R1,
+lwd = 4,
+type = 'n',
+col = 'dodgerblue4',
+xlab = '',
+ylab = 'Rainfall (mm)',
+las = 1)
+
+title(main = title, cex.main = 1.4, line = 0.5)
+
+abline(h = seq(-20,500,2), col = 'gray')
+abline(h = seq(-20,500,10), col = 'black')
+
+lines(x = seconddays, y = R1, lwd = 4, col = 'dodgerblue4')
+polygon(x = c(seconddays,rev(seconddays)),y = c(R1,rep(0,length(R1))),col='dodgerblue3', border = NA)
+}
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+#SOIL MOISTURE
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+rdat = soil$dat
+colnames(rdat) = soil$header2
+
+#Soil moisture data
+R1 = 100*rdat[which(dlist$time == threeback):which(dlist$time == now),'SoilMoisture_1_Avg']
+R2 = 100*rdat[which(dlist$time == threeback):which(dlist$time == now),'SoilMoisture_2_Avg']
+R3 = 100*rdat[which(dlist$time == threeback):which(dlist$time == now),'SoilMoisture_3_Avg']
+	
+	#Seventh test: if the last 3 days are all NA
+	#...............................................#
+	if(all(is.na(R1)) | all(is.na(R2)) | all(is.na(R3))){
+		plot(x = 1:10,y = 1:10, type = 'n',xlab = '',ylab='')
+		text(x = c(5,5), y = c(5,4), labels = c('Soil Moisture 1, 2 or 3 all NA.', 'Check data file!'))
+	}else{
+	#...............................................#
+	
+#Title
+title = paste('Soil Moisture ',strftime(threeback,format = '%b %d'),' - ',strftime(dayback,format = '%b %d, %Y'),sep='')
+
+plot(x = days,
+y = rep(NA,length(days)),
+lwd = 3,
+type = 'n',
+col = 'blue',
+xlab = '',
+ylab = '(%)',
+ylim = c(0,100),
+las = 1)	
+
+cols = c('blue','red','forestgreen','darkmagenta')
+
+lines(x = days, y = R1, lwd = 3, col = cols[1])
+lines(x = days, y = R2, lwd = 3, col = cols[2])
+lines(x = days, y = R3, lwd = 3, col = cols[3])
+	
+title(main = title, cex.main = 1.4, line = 0.5)
+	
+abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], h = seq(0,100,20), col = 'gray')
+abline(v = dayback, col = 'black',lwd = 2)
+
+legend('topleft',fill = cols[1:3],legend = paste('soil moisture',1:3),bg='white')
+	}
+#Putting on the page title
+#mtext(text = bquote(underline(paste(.(statnames[i]),' ',.(strftime(threeback,format = '%b %d')),' - ',.(strftime(dayback,format = '%b %d, %Y')),sep=''))),cex = 2, font = 2, outer = F,line = 2)
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+#Setting up the page for Soil heat flux and Soil temperature
+par(mfrow = c(2,1),mar = c(0,5,5,4),oma=c(3,0,0,0))
+
+#SOIL HEAT FLUX
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+rdat = soil$dat
+colnames(rdat) = soil$header2
+	
+#Soil moisture data
+R1 = rdat[which(dlist$time == threeback):which(dlist$time == now),'SoilHeatFlux_1_Avg']
+R2 = rdat[which(dlist$time == threeback):which(dlist$time == now),'SoilHeatFlux_2_Avg']
+R3 = rdat[which(dlist$time == threeback):which(dlist$time == now),'SoilHeatFlux_3_Avg']
+R4 = rdat[which(dlist$time == threeback):which(dlist$time == now),'SoilHeatFlux_4_Avg']
+
+	#Eigth test: if the last 3 days are all NA
+	#...............................................#
+	if(all(is.na(R1)) | all(is.na(R2)) | all(is.na(R3)) | all(is.na(R4))){
+		plot(x = 1:10,y = 1:10, type = 'n',xlab = '',ylab='')
+		text(x = c(5,5), y = c(5,4), labels = c('Soil Heat Flux 1, 2, 3 or 4 all NA.', 'Check data file!'))
+	}else{
+	#...............................................#
+		
+#Title
+title = paste('Soil Heat Flux ',strftime(threeback,format = '%b %d'),' - ',strftime(dayback,format = '%b %d, %Y'),sep='')
+
+plot(x = days,
+y = rep(NA,length(days)),
+lwd = 3,
+type = 'n',
+col = 'blue',
+xlab = '',
+ylab = '(W/m^2)',
+ylim = c(min(c(R1,R2,R3,R4),na.rm=T),max(c(R1,R2,R3,R4),na.rm=T)),
+las = 1)	
+
+cols = c('blue','red','forestgreen','darkmagenta')
+
+lines(x = days, y = R1, lwd = 3, col = cols[1])
+lines(x = days, y = R2, lwd = 3, col = cols[2])
+lines(x = days, y = R3, lwd = 3, col = cols[3])
+lines(x = days, y = R4, lwd = 3, col = cols[4])
+	
+title(main = title, cex.main = 1.4, line = 0.5)
+	
+abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], col = 'gray')
+abline(v = dayback, col = 'black',lwd = 2)
+	
+
+legend('topleft',fill = cols,legend = paste('SHF',1:4),bg='white')
+	}
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+
+#SOIL Temperature
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+rdat = soil$dat
+colnames(rdat) = soil$header2
+	
+#Soil moisture data
+R1 = rdat[which(dlist$time == threeback):which(dlist$time == now),'Tsoil_1_Avg']
+R2 = rdat[which(dlist$time == threeback):which(dlist$time == now),'Tsoil_2_Avg']
+
+	#Eigth test: if the last 3 days are all NA
+	#...............................................#
+	if(all(is.na(R1)) | all(is.na(R2))){
+		plot(x = 1:10,y = 1:10, type = 'n',xlab = '',ylab='')
+		text(x = c(5,5), y = c(5,4), labels = c('Soil Temperature 1 or 2 all NA.', 'Check data file!'))
+	}else{
+	#...............................................#
+		
+#Title
+title = paste('Soil Temperature ',strftime(threeback,format = '%b %d'),' - ',strftime(dayback,format = '%b %d, %Y'),sep='')
+
+plot(x = days,
+y = rep(NA,length(days)),
+lwd = 3,
+type = 'n',
+col = 'blue',
+xlab = '',
+ylab = '(deg. C)',
+ylim = c(min(c(R1,R2),na.rm=T),max(c(R1,R2),na.rm=T)),
+las = 1)	
+
+cols = c('red','black')
+
+lines(x = days, y = R1, lwd = 3, col = cols[1])
+lines(x = days, y = R2, lwd = 3, col = cols[2])
+	
+title(main = title, cex.main = 1.4, line = 0.5)
+	
+abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], col = 'gray')
+abline(v = dayback, col = 'black',lwd = 2)
+	
+
+legend('topleft',fill = cols,legend = paste('Soil T',1:2),bg='white')
+	}
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+#Setting up the next page for Wind speed
+par(oma=c(0,0,0,0))
+
+#WIND SPEED
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+winddat = dlist$dat
+colnames(winddat) = dlist$header2
+winddat = winddat[which(dlist$time == dayback):which(dlist$time == now),]
+
+	#Sixth test: if the last 3 days are all NA
+	#...............................................#
+	if(all(is.na(winddat$WindSpeed)) | all(is.na(winddat$WindDir))){
+		plot(x = 1:10,y = 1:10, type = 'n',xlab = '',ylab='')
+		text(x = c(5,5), y = c(5,4), labels = c('Wind Speed or Dir all NA.', 'Check data file!'))
+	}else{
+	#...............................................#
+
+#Stuff to feed in to the windRose plot
+ws = 'WindSpeed'
+wd = 'WindDir'
+
+title = 'Wind Speed/Direction'
+
+windRose(winddat, ws = ws, wd = wd, main = title, cex.main = 1.7, angle = 10,col = c('green','yellow','red','darkred','black'),paddle = FALSE,statistic = 'abs.count')
+
+mtext(text = bquote(underline(paste(.(strftime(dayback,format = '%B %d, %Y')),sep=''))),cex = 2, font = 2, outer = F,line =29)
+}
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+
+#nothing to return, end function
+}

@@ -1,0 +1,304 @@
+#LAST MODIFIED: 09/26/2014
+#AUTHOR: ADAM SIBLEY
+#DESCRIPTION: This code reads in the screened climate data for the site, and all of the HIPPNET vegetation resurvey data. 
+#Then the dates of resurvey are used to define a window in which to compute climate averages. For the moving window part of the
+#code, the correlation between tree growth and metric-within-current-window will be computed and recorded. This will allow us to 
+#see what window size best correlates with tree growth. 
+
+
+#Libraries and functions
+#---------------------------------------#
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/climread.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/read_palam_2010.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/read_lau_2011.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/read_lau_2012.r')
+library(WriteXLS)
+library(gdata)
+#---------------------------------------#
+
+#Directories
+#---------------------------------------#
+cdir = '/home/adam/Dropbox/sapflow/clim_screened/'
+vdir = '/home/adam/Dropbox/sapflow/veg/palam/'
+climdate = '20140404'
+figdir = '/home/adam/Dropbox/sapflow/figs/veg/'
+#---------------------------------------#
+
+
+#READING THE DATA IN AND PREPARING IT
+#==============================================================================================#
+#Climate data
+temp  = read.table(paste(cdir,'Palamanui_screened_',climdate,'.dat' ,sep=''),sep=',',header = T)
+temp[,1] = as.POSIXct(as.character(temp[,1])) #Fixing the timestamps
+temp[which(temp == -9999,arr.ind = T)] = NA
+temp1 = as.matrix(temp[,2:ncol(temp)])
+
+#Rectifying the fact that there are gaps in the data
+times = seq(temp[1,1],tail(temp[,1],1),by = 600)
+clim = matrix(NA,nrow = length(times),ncol = (ncol(temp)-1))
+missvec = match(temp[,1],times)
+clim[missvec,] = temp1
+colnames(clim) = colnames(temp)[2:ncol(temp)]
+
+#Setting a threshold for later. If there is greater than this percentage of NAs in the climate data
+#When computing metrics over different lags/windows with the climate data, that combination of lag/window will
+#not be used.
+na.thresh = 0.2
+
+#Veg data
+veg10 = read_palam_2010(paste(vdir,'PN_resurvey_2010_v01_clim_rev_EDITED.csv',sep=''))
+veg11 = read_palam_2010(paste(vdir,'PN_resurvey_2011_v03_clim_EDITED.csv',sep=''))
+veg12 = read_palam_2010(paste(vdir,'PN_resurvey_2012_v02_clim_EDITED.csv',sep=''))
+
+#Getting rid of entries where there's "no growth", or rather growth could not be calculated
+veg10 = veg10[-which(veg10$Growth. == 'no'),]
+veg11 = veg11[-which(veg11$Growth. == 'no'),]
+veg12 = veg12[-which(veg12$Growth. == 'no'),]
+
+#Identifying trees common to 2011 and 2010
+vegmatch = match(veg11$TAG_2,veg10$TAG_2)
+vegmatch = vegmatch[-which(is.na(vegmatch) == T)]
+
+#trees common to 2012, too
+vegmatch = match(veg10$TAG_2[vegmatch], veg12$TAG_2)
+vegmatch = vegmatch[-which(is.na(vegmatch) == T)]
+
+#ID of trees that appear in all 3 datasets:
+treeID = sort(veg12$TAG_2[vegmatch])
+
+#Ordering the datasets to match each other
+veg10 = veg10[match(treeID,veg10$TAG_2),]
+veg11 = veg11[match(treeID,veg11$TAG_2),]
+veg12 = veg12[match(treeID,veg12$TAG_2),]
+
+#ID of unique species
+species = sort(unique(veg10$SPECIES_2))
+
+#Making a list of indices by which we will segregate the data
+ind.list = list()
+ind.list[[1]] = 1:length(treeID)
+ind.list[[2]] = which(veg10$SPECIES_2 != 'CIBCHA' & veg10$SPECIES_2 != 'CIBGLA' & veg10$SPECIES_2 != 'CIBMEN')
+for(i in 1:length(species)){ind.list[[2+i]] = which(veg10$SPECIES_2 == species[i])}
+#(Indicies for size classes based on DBH in 2012. This assumes trees do not change size classes through the years). 
+ind.list[[2+length(species)+1]] = which(veg12$DBH_2 < 10)
+ind.list[[2+length(species)+2]] = which(veg12$DBH_2 >= 10 & veg12$DBH_2 < 30)
+ind.list[[2+length(species)+3]] = which(veg12$DBH_2 >= 30 & veg12$DBH_2 < 60)
+ind.list[[2+length(species)+4]] = which(veg12$DBH_2 >= 60 & veg12$DBH_2 < 100)
+ind.list[[2+length(species)+5]] = which(veg12$DBH_2 >= 100)
+
+#Some other useful IDs 
+yrs = 2010:2012
+
+#Pulling out the relevant columns of climate data and making them all matrices. 
+#Starting to remember why I hate dataframes. 
+#Fuck dataframes. 
+Tair = as.vector(rowMeans(clim[,which(substr(colnames(clim),1,4) == 'Tair')],na.rm=T))
+RF = as.vector(clim[,'RF'])
+SW = as.vector(clim[,'SWup'])
+#==============================================================================================#
+
+
+#LOOPING THROUGH ALL THE AVERAGING PERIODS
+#==============================================================================================#
+#Period of time (in days) over which to aggregate
+pers = seq(1,730,by=5)
+lags = c(0,3,6,9,12)
+
+#Making an array to hold temperature correlation data in
+Tcors = array(data = NA,dim = c(length(pers),length(species)+7,length(lags)))
+colnames(Tcors) = c('All','Noferns',as.character(species),'0-10','10-30','30-60','60-100','100+')
+rownames(Tcors) = pers
+
+#Assigning those column names to the list of index values
+names(ind.list) = colnames(Tcors)
+
+#Other arrays for other variables
+RFcors = SWcors = Tcors
+
+#Looping through lags
+stime = Sys.time()
+for(i in 1:length(lags)){
+
+	lag = lags[i]
+	
+	end10 = match(veg10$DATE_2-lag*60*60*24*30,times)
+	if(any(is.na(end10))){next}
+	end11 = match(veg11$DATE_2-lag*60*60*24*30,times)
+	end12 = match(veg12$DATE_2-lag*60*60*24*30,times)
+
+	#Looping through aggregation periods
+	for(j in 1:length(pers)){
+	
+		per = pers[j]
+		
+		start10 = match(veg10$DATE_2-lag*60*60*24*30-(60*60*24*per),times)
+		if(any(is.na(start10))){next}
+		start11 = match(veg11$DATE_2-lag*60*60*24*30-(60*60*24*per),times)
+		start12 = match(veg12$DATE_2-lag*60*60*24*30-(60*60*24*per),times)
+		
+		#Temporary climate matrix
+		cnames = c(paste('T',yrs,sep=''),paste('RF',yrs,sep=''),paste('SW',yrs,sep=''))
+		climmat = matrix(NA,nrow = length(treeID),ncol = length(cnames))
+		colnames(climmat) = cnames
+		
+		#Matrix to record NA values for later 
+		namat = climmat
+		
+		#Computing climate metrics for each period
+		for(k in 1:length(treeID)){
+			climmat[k,'T2010'] = mean(Tair[start10[k]:end10[k]],na.rm=TRUE)
+			climmat[k,'T2011'] = mean(Tair[start11[k]:end11[k]],na.rm=TRUE)
+			climmat[k,'T2012'] = mean(Tair[start12[k]:end12[k]],na.rm=TRUE)
+			climmat[k,'RF2010'] = sum(RF[start10[k]:end10[k]],na.rm=TRUE)/per
+			climmat[k,'RF2011'] = sum(RF[start11[k]:end11[k]],na.rm=TRUE)/per
+			climmat[k,'RF2012'] = sum(RF[start12[k]:end12[k]],na.rm=TRUE)/per
+			climmat[k,'SW2010'] = mean(SW[start10[k]:end10[k]],na.rm=TRUE)
+			climmat[k,'SW2011'] = mean(SW[start11[k]:end11[k]],na.rm=TRUE)
+			climmat[k,'SW2012'] = mean(SW[start12[k]:end12[k]],na.rm=TRUE)	
+			
+			length10 = length(start10[k]:end10[k])
+			length11 = length(start11[k]:end11[k])
+			length12 = length(start12[k]:end12[k])
+			
+			namat[k,'T2010'] = length(which(is.na(Tair[start10[k]:end10[k]])))/length10
+			namat[k,'T2011'] = length(which(is.na(Tair[start11[k]:end11[k]])))/length11
+			namat[k,'T2012'] = length(which(is.na(Tair[start12[k]:end12[k]])))/length12
+			namat[k,'RF2010'] = length(which(is.na(RF[start10[k]:end10[k]])))/length10
+			namat[k,'RF2011'] = length(which(is.na(RF[start11[k]:end11[k]])))/length11
+			namat[k,'RF2012'] = length(which(is.na(RF[start12[k]:end12[k]])))/length12
+			namat[k,'SW2010'] = length(which(is.na(SW[start10[k]:end10[k]])))/length10
+			namat[k,'SW2011'] = length(which(is.na(SW[start11[k]:end11[k]])))/length11
+			namat[k,'SW2012'] = length(which(is.na(SW[start12[k]:end12[k]])))/length12	
+		}		
+		
+		
+		
+		#Looping through the indicies
+		for(l in 1:length(ind.list)){
+		
+			if(length(ind.list[[l]]) > 1){ 
+				select.clim = colMeans(climmat[ind.list[[l]],],na.rm=T)
+				select.na = colMeans(namat[ind.list[[l]],])
+				growths = colMeans((cbind(veg10$cm.day,veg11$cm.day,veg12$cm.day))[ind.list[[l]],],na.rm=T)
+				}
+				
+			if(length(ind.list[[l]]) == 1){ 
+				select.clim = climmat[ind.list[[l]],]
+				select.na = namat[ind.list[[l]],]
+				growths = (cbind(veg10$cm.day,veg11$cm.day,veg12$cm.day))[ind.list[[l]],]
+				}
+			
+			if(all(select.na[1:3] < na.thresh)){Tcors[j,l,i] = cor(select.clim[1:3],growths)}
+			if(all(select.na[4:6] < na.thresh)){RFcors[j,l,i] = cor(select.clim[4:6],growths)}
+			if(all(select.na[7:9] < na.thresh)){SWcors[j,l,i] = cor(select.clim[7:9],growths)}
+		}
+			
+		print(paste(lag,' - ',per,' - ',difftime(Sys.time(),stime,units = 'mins'),' minutes',sep=''))
+	}	
+}		
+			
+#Phew! Write dat bugga out....as an Rdat file
+save(file = paste(vdir,'cor_outputs.Rdat',sep=''),list = c('Tcors','RFcors','SWcors'))			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+		#FIRST TEST: ALL SPECIES TOGETHER
+		alls = colMeans(climmat,na.rm=T)
+		growths = colMeans(cbind(veg10$cm.day,veg11$cm.day,veg12$cm.day),na.rm=T)
+		Tcors[j,'All',i] = cor(alls[1:3],growths)
+		RFcors[j,'All',i] = cor(alls[4:6],growths)
+		SWcors[j,'All',i] = cor(alls[7:9],growths)
+
+		#FIRST TEST: ALL SPECIES TOGETHER
+		alls = colMeans(climmat,na.rm=T)
+		growths = colMeans(cbind(veg10$cm.day,veg11$cm.day,veg12$cm.day),na.rm=T)
+		Tcors[j,'All',i] = cor(alls[1:3],growths)
+		RFcors[j,'All',i] = cor(alls[4:6],growths)
+		SWcors[j,'All',i] = cor(alls[7:9],growths)
+
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Taking a minute to test where the gaps are
+
+alltimes = seq(clim[1,1],tail(clim[,1],1),by = 600)
+
+newtimes = vector(length = length(alltimes),mode = 'numeric')
+
+missing = match(alltimes,clim[,1])
+newtimes[which(is.na(missing))] = 1
+
+plot(y = newtimes, x = alltimes,type = 'l')
+abline(v = seq(clim[1,1],tail(clim[,1],1),by = 60*60*24*30),col = 'gray')
+
+
+
+
+for(i in 1:length(alltimes)){
+	if(is.na(which(clim[,1] == alltimes[i]))){newtimes[i] = 1}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

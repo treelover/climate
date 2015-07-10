@@ -1,0 +1,105 @@
+
+#Libraries and functions
+#---------------------------------------#
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/climread.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/read_REST2.r')
+library(WriteXLS)
+#---------------------------------------#
+
+#Directories
+#---------------------------------------#
+cdir = '/home/adam/Dropbox/sapflow/clim_screened/'
+dates = '20140404'
+#---------------------------------------#
+
+#Load up the climate data
+#---------------------------------------#
+load(paste(cdir,'all_stations_',dates,'.Rdat',sep=''))
+#---------------------------------------#
+
+#Reading in the most recent climate data
+#---------------------------------------#
+clim1 = climread('/home/adam/Dropbox/sapflow/veg/pww/PuuWaawaa_20140414.dat')
+clim2 = climread('/home/adam/Dropbox/sapflow/veg/pww/PuuWaawaa_20140501.dat')
+clim3 = climread('/home/adam/Dropbox/sapflow/veg/pww/PuuWaawaa_20140618.dat')
+clim4 = climread('/home/adam/Dropbox/sapflow/clim/PuuWaawaa_MetData.dat')
+cnames = clim4[['header2']]
+newclim = rbind(clim1[['dat']],clim2[['dat']],clim3[['dat']],clim4[['dat']])
+colnames(newclim) = cnames
+
+soil1 = climread('/home/adam/Dropbox/sapflow/veg/pww/PwwSoil_20140414.dat')
+soil2 = climread('/home/adam/Dropbox/sapflow/veg/pww/PwwSoil_20140501.dat')
+soil3 = climread('/home/adam/Dropbox/sapflow/veg/pww/PwwSoil_20140618.dat')
+soil4 = climread('/home/adam/Dropbox/sapflow/clim/PwwSoil_SoilData.dat')
+cnames = soil4[['header2']]
+newsoil = rbind(soil1[['dat']],soil2[['dat']],soil3[['dat']],soil4[['dat']])
+
+#Getting the soil data to match up with the clim data
+soilmat = as.data.frame(matrix(NA,nrow = nrow(newclim),ncol = ncol(newsoil)))
+soilmat[,1] = newclim[,1]
+for(i in 1:nrow(soilmat)){
+
+	ID = which(newsoil[,1] == soilmat[i,1])
+	
+	if(length(ID) != 0){soilmat[i,] = newsoil[ID,]}
+}
+
+newsoil = soilmat
+colnames(newsoil) = cnames
+
+#---------------------------------------#
+
+#Pulling out the pww entry in the climate data from before
+pww = slist[['pww']]
+
+#Rearraning new data to fit old data
+newclim = cbind(newclim[,c(1,3,4,5,6,7,8,10,9,11,12:14,16,15)],newsoil[,3:11],newclim[,17])
+colnames(newclim) = colnames(pww)[1:25]
+
+
+
+#Cranking through the clear sky stuff
+#---------------------------------------------------------#
+rdir = '/home/adam/Dropbox/sapflow/clim/clear_sky_rad/raw/'
+rest = read_REST2(paste(rdir,'PuuWaaWaa_REST2_out.txt',sep=''))
+
+stat = newclim
+
+	#Matrix to hold the new data
+	temp = matrix(NA,ncol = 3, nrow = nrow(stat))
+	
+	#Making a compatable list of timestamps
+	stat.time = substr(stat$yyyy.mm.dd.hh.mm,6,16)
+	
+	rest.time = paste(sprintf(fmt = '%02d',rest[,'Mnth']),'-',sprintf(fmt = '%02d',rest[,'Day']),' ',sprintf(fmt = '%02d',floor(rest[,'HrLST'])),':',sprintf(fmt = '%02d',round((rest[,'HrLST']-floor(rest[,'HrLST']))*60)),sep='')                                    
+
+	for(j in 1:nrow(stat)){
+	
+		ID = which(rest.time == stat.time[j])
+		
+		if(length(ID) == 0){temp[j,3] = 0; next}
+		
+		
+		if(rest[ID,'Ghor'] <= 0){temp[j,] = c(rest[ID,'Ghor'],1-(stat[j,'SWup']/rest[ID,'Ghor']),0)}else{
+								 temp[j,] = c(rest[ID,'Ghor'],1-(stat[j,'SWup']/rest[ID,'Ghor']),1)}
+	}
+	
+	#Adding the column names
+	colnames(temp) = c('ClearSky','Cloud','DayFlag')
+	
+	#Removing any infinite values and NaNs
+	temp[which(is.infinite(temp) == T,arr.ind = T)] = NA
+	temp[which(is.nan(temp) == T,arr.ind = T)] = NA
+	
+	#Putting it all together
+	stat = cbind(stat,temp)
+
+#---------------------------------------------------------#
+
+final = rbind(pww,stat)
+
+save(final,file = '/home/adam/Dropbox/sapflow/veg/pww/pww_climdata.Rdat')
+
+plot(stat[,'RH_2'])
+
+

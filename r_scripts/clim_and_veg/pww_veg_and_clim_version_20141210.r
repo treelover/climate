@@ -1,0 +1,185 @@
+#This code reads in the veg data for each site, the climate data for each site, 
+#and computes a 6 month average of various climate metrics for each plant.
+
+
+#Libraries and functions
+#---------------------------------------#
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/climread.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/read_lau_2010.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/read_lau_2011.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/read_lau_2012.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/read_palam_2010.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/read_pww_2013.r')
+library(WriteXLS)
+#---------------------------------------#
+
+#Directories
+#---------------------------------------#
+cdir = '/home/adam/Dropbox/sapflow/clim_screened/'
+dates = '20141210'
+#---------------------------------------#
+
+#Interval over which to aggregate data
+#BECAUSE THE CLIMATE DATA DOES NOT GO BACK SIX MONTHS, SET THE PERIOD AT 110 DAYS, WHICH IS THE AMOUNT OF TIME
+#WE HAVE DATA FOR
+#---------------------------------------#
+per = 60*60*24*110
+#---------------------------------------#
+
+#Percentage of data that can still be NA and give a valid number
+#---------------------------------------#
+nathresh = 0.8
+#---------------------------------------#
+
+#Load up the climate data
+#---------------------------------------#
+load(paste(cdir,'all_stations_',dates,'.Rdat',sep=''))
+#---------------------------------------#
+	
+
+#PUUWAAWAA
+#---------------------------------------#
+#Pulling out the climate data for this location
+clim = slist[['pww']]   
+
+#Veg data
+vdir = '/home/adam/Dropbox/sapflow/veg/pww/'
+veg13 = read_pww_2013(paste(vdir,'pww_resurvey_2013_v02_clim_EDITED.csv',sep=''))
+veg14 = read_pww_2013(paste(vdir,'pww_resurvey_2014_v01_clim_EDITED.csv',sep=''))
+
+#Getting rid of entries where there's "no growth", or rather growth could not be calculated
+veg13 = veg13[-which(veg13$Growth. == 'no'),]
+veg14 = veg14[-which(veg14$Growth. == 'no'),]
+
+#Identifying trees common to 2011 and 2010
+vegmatch = match(veg14$TAG_1,veg13$TAG_2)
+vegmatch = vegmatch[-which(is.na(vegmatch) == T)]
+
+#ID of trees that appear in all datasets:
+treeID = sort(veg13$TAG_2[vegmatch])
+
+#Ordering the datasets to match each other
+veg13 = veg13[match(treeID,veg13$TAG_2),]
+veg14 = veg14[match(treeID,veg14$TAG_1),]
+
+
+#Filling in a data frame with the PWW vegetation data
+#...........................................................#
+veg = as.data.frame(matrix(NA,nrow = length(treeID),ncol = 14))
+colnames(veg) = c('tag','site','species','dbh','survey_2010','survey_2011','survey_2012','survey_2013','survey_2014','growth_2010','growth_2011','growth_2012','growth_2013','growth_2014')
+veg[,'tag'] = treeID
+veg[,'site'] = rep('pww',length(treeID))
+veg[,'species'] = veg13$SPECIES_2
+veg[,'dbh'] = veg14$DBH_2
+veg$survey_2013 = veg13$DATE_2
+veg$survey_2014 = veg14$DATE_2
+veg$growth_2013 = veg13$cm.day
+veg$growth_2014 = veg14$cm.day
+#...........................................................#
+
+#Filling in a data frame with the Palamanui climate data 
+#...........................................................#
+vegclim = as.data.frame(matrix(NA,nrow = length(treeID),ncol = 40))
+colnames(vegclim) = c('Tave_2010','Tave_2011','Tave_2012','Tave_2013','Tave_2014',
+                      'Tmin_2010','Tmin_2011','Tmin_2012','Tmin_2013','Tmin_2014',
+                      'Tmax_2010','Tmax_2011','Tmax_2012','Tmax_2013','Tmax_2014',
+                      'RF_2010','RF_2011','RF_2012','RF_2013','RF_2014',
+                      'Cld_2010','Cld_2011','Cld_2012','Cld_2013','Cld_2014',
+                      'SW_2010','SW_2011','SW_2012','SW_2013','SW_2014',
+                      'SM_2010','SM_2011','SM_2012','SM_2013','SM_2014',
+                      'WS_2010','WS_2011','WS_2012','WS_2013','WS_2014')
+                      
+#Factor of days and a vector of unique days
+dayfac = substr(clim$yyyy.mm.dd.hh.mm,1,10)
+dayuni = unique(substr(clim$yyyy.mm.dd.hh.mm,1,10))                             
+
+
+                      
+#The climate variables
+Tair = rowMeans(clim[,c('Tair_1','Tair_2')],na.rm=T)                      
+RF = clim$RF
+SW = clim$SWup	
+SM = rowMeans(cbind(clim$SM_1,clim$SM_2,clim$SM_3),na.rm=T)
+WS = clim$WS
+daymins = tapply(Tair,dayfac,min)
+daymaxs = tapply(Tair,dayfac,max)
+cld = clim$Cloud
+dayID = which(clim$DayFlag == 1)
+		                      
+for(i in 1:nrow(veg)){
+	
+	win2013 = which(clim$yyyy.mm.dd.hh.mm == as.POSIXct(paste(veg$survey_2013[i],'00:00:00')))
+	win2013 = which(clim$yyyy.mm.dd.hh.mm == as.POSIXct(paste(veg$survey_2013[i],'00:00:00'))-per):win2013
+	
+	win2014 = which(clim$yyyy.mm.dd.hh.mm == as.POSIXct(paste(veg$survey_2014[i],'00:00:00')))
+	win2014 = which(clim$yyyy.mm.dd.hh.mm == as.POSIXct(paste(veg$survey_2014[i],'00:00:00'))-per):win2014
+	
+	#Average Temperature
+	if(length(which(is.na(Tair[win2013])))/length(win2013) < nathresh){vegclim$Tave_2013[i] = mean(Tair[win2013],na.rm=T)} #Tave 2013
+	if(length(which(is.na(Tair[win2014])))/length(win2014) < nathresh){vegclim$Tave_2014[i] = mean(Tair[win2014],na.rm=T)} #Tave 2014
+	
+	#Rainfall
+	if(length(which(is.na(RF[win2013])))/length(win2013) < nathresh){vegclim$RF_2013[i] = sum(RF[win2013],na.rm=T)/(length(win2013)/(6*24))} #RF 2013
+	if(length(which(is.na(RF[win2014])))/length(win2014) < nathresh){vegclim$RF_2014[i] = sum(RF[win2014],na.rm=T)/(length(win2014)/(6*24))} #RF 2014
+	
+	#Shortwave radiation
+	if(length(which(is.na(SW[win2013])))/length(win2013) < nathresh){vegclim$SW_2013[i] = mean(SW[win2013],na.rm=T)} #SW 2013
+	if(length(which(is.na(SW[win2014])))/length(win2014) < nathresh){vegclim$SW_2014[i] = mean(SW[win2014],na.rm=T)} #SW 2014
+	
+	#Soil Moisture
+	if(length(which(is.na(SM[win2013])))/length(win2013) < nathresh){vegclim$SM_2013[i] = mean(SM[win2013],na.rm=T)} #SM 2013
+	if(length(which(is.na(SM[win2014])))/length(win2014) < nathresh){vegclim$SM_2014[i] = mean(SM[win2014],na.rm=T)} #SM 2014
+	
+	#Windspeed
+	if(length(which(is.na(WS[win2013])))/length(win2013) < nathresh){vegclim$WS_2013[i] = mean(WS[win2013],na.rm=T)} #WS 2013
+	if(length(which(is.na(WS[win2014])))/length(win2014) < nathresh){vegclim$WS_2014[i] = mean(WS[win2014],na.rm=T)} #WS 2014
+	
+	#Now the tricky ones: Minimum and maximum temperature
+	#+=+=+=+=+=+=+$
+	#2013
+	if(length(which(is.na(Tair[win2013])))/length(win2013) < nathresh){
+	vegclim$Tmin_2013[i] = mean(daymins[which(dayuni == (veg$survey_2013[i]-per)):which(dayuni == veg$survey_2013[i])],na.rm=T)
+	vegclim$Tmax_2013[i] = mean(daymaxs[which(dayuni == (veg$survey_2013[i]-per)):which(dayuni == veg$survey_2013[i])],na.rm=T)}
+	
+	#2014
+	if(length(which(is.na(Tair[win2014])))/length(win2014) < nathresh){
+	vegclim$Tmin_2014[i] = mean(daymins[which(dayuni == (veg$survey_2014[i]-per)):which(dayuni == veg$survey_2014[i])],na.rm=T)
+	vegclim$Tmax_2014[i] = mean(daymaxs[which(dayuni == (veg$survey_2014[i]-per)):which(dayuni == veg$survey_2014[i])],na.rm=T)}
+	#+=+=+=+=+=+=+$
+	
+	#Cloudiness index
+	#+=+=+=+=+=+=+$
+	#Only taking the entries in the window that correspond to day
+	cldwin2013 = dayID[dayID %in% win2013]
+	cldwin2014 = dayID[dayID %in% win2014]
+	
+	if(length(which(is.na(cld[cldwin2013])))/length(cldwin2013) < nathresh){vegclim$Cld_2013[i] = mean(cld[cldwin2013],na.rm=T)} #cld 2013
+	if(length(which(is.na(cld[cldwin2014])))/length(cldwin2014) < nathresh){vegclim$Cld_2014[i] = mean(cld[cldwin2014],na.rm=T)} #cld 2014
+	#+=+=+=+=+=+=+$
+	
+	if(i/100 == round(i/100,0)){print(paste(i,'trees done'))}
+}
+#...........................................................#
+
+#PWW DONE! STICK THE CLIM MATRIX TO THE VEG MATRIX
+pwwmasta = cbind(veg,vegclim)
+
+#write it out for its own self
+WriteXLS(x = 'pwwmasta',ExcelFileName = paste(vdir,'Pww_master_climveg_6mo_version_20141210.xls',sep=''),AdjWidth = T)
+
+#============================================================#
+#------------------------------------------------------------#
+#............................................................#
+#------------------------------------------------------------#
+#============================================================#
+
+
+
+
+
+
+
+
+
+
+

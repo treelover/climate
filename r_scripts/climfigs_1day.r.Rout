@@ -1,0 +1,524 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> #This script will, on a daily basis, create summary figures for the past 24 hours of weather data. 
+> source('/home/adam/Dropbox/sapflow/r_scripts/fun/climread.r')
+> source('/home/adam/Dropbox/sapflow/r_scripts/fun/plot.windrose.r')
+Loading required package: ggplot2
+Loading required package: RColorBrewer
+> library(openair)
+> 
+> #Directories
+> #---------------------------------------#
+> cdir = '/home/adam/Dropbox/sapflow/clim/'
+> figdir = '/home/adam/Dropbox/sapflow/figs/clim_1day/'
+> #---------------------------------------#
+> 
+> #Reading in the most recent met data
+> #------------------------------------------------------------#
+> #hak = poor hakalau
+> ipif  = climread(paste(cdir,'IPIF_MetData.dat',sep=''))
+> kiho  = climread(paste(cdir,'Kiholo_MetData.dat',sep=''))
+> lau   = climread(paste(cdir,'Laupahoehoe_MetData.dat',sep=''))
+> mama  = climread(paste(cdir,'Mamalahoa_MetData.dat',sep=''))
+> palam = climread(paste(cdir,'Palamanui_MetData.dat',sep=''))
+> pww   = climread(paste(cdir,'PuuWaawaa_MetData.dat',sep=''))
+> spen  = climread(paste(cdir,'Spencer_MetData.dat',sep=''))
+> dlist = list(ipif,kiho,lau,mama,palam,pww,spen)
+> names(dlist) = c('ipif','kiho','lau','mama','palam','pww','spen')
+> 
+> #Reading in the system info
+> ipifs  = climread(paste(cdir,'IPIF_SysInfo.dat',sep=''))
+> kihos  = climread(paste(cdir,'Kiholo_SysInfo.dat',sep=''))
+> laus  = climread(paste(cdir,'Laupahoehoe_SysInfo.dat',sep=''))
+> mamas  = climread(paste(cdir,'Mamalahoa_SysInfo.dat',sep=''))
+> palams = climread(paste(cdir,'Palamanui_SysInfo.dat',sep=''))
+> pwws   = climread(paste(cdir,'PuuWaawaa_SysInfo.dat',sep=''))
+> spens  = climread(paste(cdir,'Spencer_SysInfo.dat',sep=''))
+> slist = list(ipifs,kihos,laus,mamas,palams,pwws,spens)
+> names(slist) = c('ipifs','kihos','laus','mamas','palams','pwws','spens')
+> #------------------------------------------------------------#
+> 
+> #Station names
+> statnames = c('IPIF','Kiholo','Laupahoehoe','Mamalahoa','Palamanui','PuuWaawaa','Spencer')
+> 
+> #Getting system time
+> now = Sys.time()
+> now = as.POSIXct(paste(substr(now,1,11),'00:00:00',sep=''))
+> 
+> dayback = now-(60*60*24)
+> threeback = now-(60*60*24*3)
+> 
+> #FIRST OFF, MAKE A BATTERY PLOT!
+> #-------------------------------------------------------------#
+> 
+> #open jpeg
+> jpeg(filename = paste(figdir,now,'_Battery.jpeg',sep=''),width = 1000, height = 600)
+> 
+> #Make title
+> title = paste('Battery Voltage ',strftime(threeback,format = '%B %d, %Y'),' through ',strftime(dayback,format = '%B %d, %Y'),sep='')
+> 
+> #Make x data 
+> x = ipifs$time[which(ipifs$time == threeback):which(ipifs$time == now)]
+> 
+> #Start the plot
+> plot(x = x,
++ y = rep(NA,length(x)),
++ ylim = c(10,14),
++ main = title,
++ cex.main = 1.5,
++ las = 1,
++ ylab = 'Volts',
++ xlab = '')
+> 
+> #Add some lines
+> abline(h = seq(8,15,1),v = seq(threeback,now,'day'),col = colors()[220])
+> abline(v = dayback, col = 'black')
+> 
+> #Stations
+> sloop = c('ipifs','kihos','laus','mamas','palams','pwws','spens')
+> 
+> #Colors for each stations
+> plotcols = colors()[c(29,552,32,90,99,258,153,254)]
+> 
+> #Looping through the stations
+> for(i in 1:length(sloop)){
++ 
++ #Coming up with the data to plot
++ 
++ batvar = which(slist[[i]]$header2 == 'BattVolt_Avg')
++ dat = slist[[i]]$dat[,batvar] 
++ 
++ #First line = the first two days, dashed line
++ firstdays = slist[[i]]$time[which(slist[[i]]$time == threeback):which(slist[[i]]$time == dayback)]
++ firstline = dat[which(slist[[i]]$time == threeback):which(slist[[i]]$time == dayback)]
++ 
++ #Second line = last 24 hours
++ seconddays = slist[[i]]$time[which(slist[[i]]$time == dayback):which(slist[[i]]$time == now)]
++ secondline = dat[which(slist[[i]]$time == dayback):which(slist[[i]]$time == now)]
++ 
++ #Plot them babies
++ lines(x = firstdays, y = firstline, col = plotcols[i],lwd = 4, lty = 1)
++ lines(x = seconddays, y = secondline, col = plotcols[i],lwd = 4, lty = 1)
++ 
++ }
+> 
+> legend('bottomleft',fill = plotcols,legend = statnames,cex = 1.5,bg='white')
+> dev.off()
+null device 
+          1 
+> #-------------------------------------------------------------#
+> 
+> 
+> #HO BRAH, TIME FOR DA HUMIDITY
+> #-------------------------------------------------------------#
+> 
+> #open jpeg
+> jpeg(filename = paste(figdir,now,'_Enc_Humidity.jpeg',sep=''),width = 1000, height = 600)
+> 
+> #Make title
+> title = paste('Enclosure Humidity ',strftime(threeback,format = '%B %d, %Y'),' through ',strftime(dayback,format = '%B %d, %Y'),sep='')
+> 
+> #Make x data 
+> x = ipifs$time[which(ipifs$time == threeback):which(ipifs$time == now)]
+> 
+> #Start the plot
+> plot(x = x,
++ y = rep(NA,length(x)),
++ ylim = c(0,100),
++ main = title,
++ cex.main = 1.5,
++ las = 1,
++ ylab = 'Relative Humidity (%)',
++ xlab = '')
+> 
+> #Add some lines
+> abline(h = seq(0,100,10),v = seq(threeback,now,'day'),col = colors()[220])
+> abline(v = dayback, col = 'black')
+> 
+> #Looping through the stations
+> for(i in 1:length(sloop)){
++ 
++ #Coming up with the data to plot
++ rhvar = which(slist[[i]]$header2 == 'RH_enc')
++ dat = slist[[i]]$dat[,rhvar] 
++ 
++ #First line = the first two days, dashed line
++ firstdays = slist[[i]]$time[which(slist[[i]]$time == threeback):which(slist[[i]]$time == dayback)]
++ firstline = dat[which(slist[[i]]$time == threeback):which(slist[[i]]$time == dayback)]
++ 
++ #Second line = last 24 hours
++ seconddays = slist[[i]]$time[which(slist[[i]]$time == dayback):which(slist[[i]]$time == now)]
++ secondline = dat[which(slist[[i]]$time == dayback):which(slist[[i]]$time == now)]
++ 
++ #Plot them babies
++ lines(x = firstdays, y = firstline, col = plotcols[i],lwd = 4, lty = 1)
++ lines(x = seconddays, y = secondline, col = plotcols[i],lwd = 4, lty = 1)
++ 
++ }
+> 
+> legend('bottomleft',fill = plotcols,legend = statnames,cex = 1.2,bg='white')
+> dev.off()
+null device 
+          1 
+> #-------------------------------------------------------------#
+> 
+> #OH, NOW WE DO DA STATIONS
+> #-------------------------------------------------------------#
+> for(i in 1:length(sloop)){
++ 
++ #open jpeg
++ jpeg(filename = paste(figdir,now,'_',statnames[i],'_T.jpeg',sep=''),width = 1000, height = 600)
++ #par(mfrow = c(2,2),mar=c(5,4,6,2))
++ 
++ #TEMPERATURE
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ #Pull out the two Temperature records
++ T1 = dlist[[i]]$dat[,which(dlist[[i]]$header2 == 'Tair_1_Avg')]
++ T2 = dlist[[i]]$dat[,which(dlist[[i]]$header2 == 'Tair_2_Avg')]
++ 
++ T1 = T1[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ T2 = T2[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 
++ #Time vector
++ days = dlist[[i]]$time[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 
++ #The title
++ title = paste('Air Temperature at ',statnames[i],' ',strftime(threeback,format = '%B %d'),' through ',strftime(dayback,format = '%B %d, %Y'),sep='')
++ 
++ plot(x = days,
++ y = T1,
++ lwd = 3,
++ type = 'l',
++ col = 'blue',
++ main = title,
++ cex.main = 1.5,
++ xlab = '',
++ ylab = 'Temperature (deg. C)',
++ ylim = c(min(c(T1,T2),na.rm=T),max(c(T1,T2),na.rm=T)),
++ las = 1)
++ 
++ lines(x = days, y = T2, lwd = 3, col = 'red')
++ 
++ abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], col = 'gray')
++ abline(v = dayback, col = 'black',lwd = 2)
++ 
++ legend(x = 'topleft',fill = c('blue','red'),legend = c('Tair 1','Tair 2'),bg='white')
++ dev.off()
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ 
++ #HUMIDITY
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ jpeg(filename = paste(figdir,now,'_',statnames[i],'_RH.jpeg',sep=''),width = 1000, height = 600)
++ #Pull out the two Temperature records
++ R1 = dlist[[i]]$dat[,which(dlist[[i]]$header2 == 'RH_1_Avg')]
++ R2 = dlist[[i]]$dat[,which(dlist[[i]]$header2 == 'RH_2_Avg')]
++ 
++ R1 = R1[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ R2 = R2[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 
++ #Time vector
++ days = dlist[[i]]$time[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 
++ #Title
++ title = paste('Relative Humidity at ',statnames[i],' ',strftime(threeback,format = '%B %d'),' through ',strftime(dayback,format = '%B %d, %Y'),sep='')
++ 
++ plot(x = days,
++ y = R1,
++ lwd = 3,
++ type = 'l',
++ col = 'blue',
++ main = title,
++ cex.main = 1.5,
++ xlab = '',
++ ylab = 'Relative Humidity (%)',
++ ylim = c(min(c(R1,R2),na.rm=T),max(c(R1,R2),na.rm=T)),
++ las = 1)
++ 
++ lines(x = days, y = R2, lwd = 3, col = 'red')
++ 
++ abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], col = 'gray')
++ abline(v = dayback, col = 'black',lwd = 2)
++ 
++ legend(x = 'topleft',fill = c('blue','red'),legend = c('RH 1','RH 2'),bg='white')
++ dev.off()
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ 
++ #WIND SPEED WEEE!
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ jpeg(filename = paste(figdir,now,'_',statnames[i],'_Wind.jpeg',sep=''),width = 600, height = 600)
++ 
++ #testing out this windrose business
++ winddat = dlist[[i]]$dat
++ colnames(winddat) = dlist[[i]]$header2
++ winddat = winddat[which(dlist[[i]]$time == dayback):which(dlist[[i]]$time == now),]
++ ws = 'WindSpeed'
++ wd = 'WindDir'
++ 
++ title = paste('Wind Speed/Direction at ',statnames[i],' - ',strftime(dayback,format = '%B %d'),sep='') 
++ 
++ windRose(winddat, ws = ws, wd = wd, main = title, cex.main = 1.5, angle = 10,col = c('green','yellow','red','brickred','black'),paddle = FALSE,statistic = 'abs.count')
++ dev.off()
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ 
++ #RADIATION
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ #Deal with the silly ipif case first
++ if(statnames[i] == 'IPIF'){
++ 
++ 	jpeg(filename = paste(figdir,now,'_',statnames[i],'_Rad.jpeg',sep=''),width = 1000, height = 600)
++ 
++ 	rdat = dlist[[i]]$dat
++ 	colnames(rdat) = dlist[[i]]$header2
++ 	
++ 	R1 = rdat$SWup_Avg[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 	R2 = rdat$PAR_Avg[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 	R3 = rdat$Rnet_Avg[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 	
++ 	#Title
++ 	title = paste('Radiation at ',statnames[i],' ',strftime(threeback,format = '%B %d'),' through ',strftime(dayback,format = '%B %d, %Y'),sep='')
++ 
++ 	plot(x = days,
++ 	y = R1,
++ 	lwd = 3,
++ 	type = 'l',
++ 	col = 'blue',
++ 	main = title,
++ 	cex.main = 1.5,
++ 	xlab = '',
++ 	ylab = 'Radiation (W/m^2)',
++ 	ylim = c(min(c(R1,R2,R3),na.rm=T),max(c(R1,R2,R3),na.rm=T)),
++ 	las = 1)
++ 
++ 	lines(x = days, y = R2, lwd = 3, col = 'red')
++ 	lines(x = days, y = R3, lwd = 3, col = 'forestgreen')
++ 
++ 	abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], h = 0, col = 'gray')
++ 	abline(v = dayback, col = 'black',lwd = 2)
++ 
++ 	legend(x = 'topleft',fill = c('blue','red','forestgreen'),legend = c('SW up','PAR','Rnet'),bg='white')
++ 	dev.off()
++ 
++ }
++ 
++ #The rest of the stations
++ if(statnames[i] != 'IPIF'){
++ 
++ 	jpeg(filename = paste(figdir,now,'_',statnames[i],'_Rad.jpeg',sep=''),width = 1000, height = 600)
++ 
++ 	rdat = dlist[[i]]$dat
++ 	colnames(rdat) = dlist[[i]]$header2
++ 	
++ 	R1 = rdat$SWup_Avg[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 	R2 = rdat$SWdn_Avg[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 	R3 = rdat$LWup_Avg[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 	R4 = rdat$LWdn_Avg[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now)]
++ 	
++ 	#Title
++ 	title = paste('Radiation at ',statnames[i],' ',strftime(threeback,format = '%B %d'),' through ',strftime(dayback,format = '%B %d, %Y'),sep='')
++ 
++ 	plot(x = days,
++ 	y = R1,
++ 	lwd = 3,
++ 	type = 'n',
++ 	col = 'blue',
++ 	main = title,
++ 	cex.main = 1.5,
++ 	xlab = '',
++ 	ylab = 'Radiation (W/m^2)',
++ 	ylim = c(min(c(R1,R2,R3,R4),na.rm=T),max(c(R1,R2,R3,R4),na.rm=T)),
++ 	las = 1)
++ 	
++ 	abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], h = seq(-1000,2000,200), col = 'gray')
++ 	abline(v = dayback, col = 'black',lwd = 2)
++ 
++ 	lines(x = days, y = R1, lwd = 3, col = 'blue')
++ 	lines(x = days, y = R2, lwd = 3, col = 'red')
++ 	lines(x = days, y = R3, lwd = 3, col = 'forestgreen')
++ 	lines(x = days, y = R4, lwd = 3, col = 'darkmagenta')
++ 
++ 	legend(x = 'topleft',fill = c('blue','red','forestgreen','darkmagenta'),legend = c('SW up','SW down','LW up','LW down'),bg='white')
++ 	dev.off()
++ }
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ 
++ #RAINFALL
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ jpeg(filename = paste(figdir,now,'_',statnames[i],'_Rain.jpeg',sep=''),width = 1000, height = 600)
++ 
++ rdat = dlist[[i]]$dat
++ colnames(rdat) = dlist[[i]]$header2
++ 	
++ R1 = rdat$Rainfall_Tot[which(dlist[[i]]$time == dayback):which(dlist[[i]]$time == now)]
++ #Making it cumulative
++ for(j in 2:length(R1)){R1[j] = R1[j]+R1[j-1]}
++ 	
++ #Title
++ title = paste('Cumulative Rainfall at ',statnames[i],' ',strftime(dayback,format = '%B %d, %Y'),sep='')
++ 
++ plot(x = seconddays,
++ y = R1,
++ lwd = 4,
++ type = 'n',
++ col = 'dodgerblue4',
++ main = title,
++ cex.main = 1.5,
++ xlab = '',
++ ylab = 'Rainfall (mm)',
++ las = 1)
++ 
++ abline(h = seq(0,100,2), col = 'gray')
++ 
++ lines(x = seconddays, y = R1, lwd = 4, col = 'dodgerblue4')
++ polygon(x = c(seconddays,rev(seconddays)),y = c(R1,rep(0,length(R1))),col='dodgerblue3', border = NA)
++ 
++ dev.off()
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ 
++ 
++ #Taking care of the ones with soil moisture
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ wettest = which(substr(dlist[[i]]$header2,1,12) == 'SoilMoisture')
++ if(length(wettest) > 0){
++ 
++ 	jpeg(filename = paste(figdir,now,'_',statnames[i],'_SM.jpeg',sep=''),width = 1000, height = 600)
++ 
++ 	rdat = dlist[[i]]$dat
++ 	colnames(rdat) = dlist[[i]]$header2
++ 	
++ 	#Title
++ 	title = paste('Soil Moisture at ',statnames[i],' ',strftime(threeback,format = '%B %d'),' through ',strftime(dayback,format = '%B %d, %Y'),sep='')
++ 
++ 	plot(x = days,
++ 	y = rep(NA,length(days)),
++ 	lwd = 3,
++ 	type = 'n',
++ 	col = 'blue',
++ 	main = title,
++ 	cex.main = 1.5,
++ 	xlab = '',
++ 	ylab = 'Soil Moisture (%)',
++ 	ylim = c(0,100),
++ 	las = 1)	
++ 	
++ 	abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], h = seq(0,100,20), col = 'gray')
++ 	abline(v = dayback, col = 'black',lwd = 2)
++ 	
++ 	leglab = c()
++ 	cols = c('blue','red','forestgreen','darkmagenta')
++ 	
++ 	for(j in 1:length(wettest)){
++ 		R1 = 100*rdat[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now),paste('SoilMoisture_',j,'_Avg',sep='')]
++ 		lines(x = days, y = R1, lwd = 3, col = cols[j])
++ 		leglab[j] = paste('SM',j)
++ 	}
++ 	
++ 	legend('topleft',fill = cols,legend = leglab,bg='white')
++ 
++ 	dev.off()
++ }
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ 
++ #Taking care of the ones with soil heat
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ heattest = which(substr(dlist[[i]]$header2,1,12) == 'SoilHeatFlux')
++ if(length(heattest) > 0){
++ 
++ 	jpeg(filename = paste(figdir,now,'_',statnames[i],'_SHeat.jpeg',sep=''),width = 1000, height = 600)
++ 
++ 	rdat = dlist[[i]]$dat
++ 	colnames(rdat) = dlist[[i]]$header2
++ 	
++ 	#Title
++ 	title = paste('Soil Heat Flux at ',statnames[i],' ',strftime(threeback,format = '%B %d'),' through ',strftime(dayback,format = '%B %d, %Y'),sep='')
++ 
++ 	plot(x = days,
++ 	y = rep(NA,length(days)),
++ 	lwd = 3,
++ 	type = 'n',
++ 	col = 'blue',
++ 	main = title,
++ 	cex.main = 1.5,
++ 	xlab = '',
++ 	ylab = 'Soil Heat Flux (W/m^2)',
++ 	ylim = c(min(rdat[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now),heattest],na.rm=T),max(rdat[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now),heattest],na.rm=T)),
++ 	las = 1)	
++ 	
++ 	abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], col = 'gray')
++ 	abline(v = dayback, col = 'black',lwd = 2)
++ 	
++ 	leglab = c()
++ 	cols = c('blue','red','forestgreen','darkmagenta')
++ 	
++ 	for(j in 1:length(heattest)){
++ 		R1 = rdat[which(dlist[[i]]$time == threeback):which(dlist[[i]]$time == now),paste('SoilHeatFlux_',j,'_Avg',sep='')]
++ 		lines(x = days, y = R1, lwd = 3, col = cols[j])
++ 		leglab[j] = paste('SHF',j)
++ 	}
++ 	
++ 	legend('topleft',fill = cols,legend = leglab,bg='white')
++ 
++ 	dev.off()
++ }
++ #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
++ }
+> 
+> #FINALLY, taking care of Lau and PWW soil loggers
+> 
+> 
+> #LAUPAHERHER
+> #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+#
+> temp = climread(paste(cdir,'LauSoil_SoilData.dat',sep=''))
+> soil = temp$dat
+> colnames(soil) = temp$header2
+> 
+> #Soil Moisture
+> jpeg(filename = paste(figdir,now,'_Laupahoehoe_SM.jpeg',sep=''),width = 1000, height = 600)
+> 	
+> 	#Title
+> 	title = paste('Soil Moisture at Laupahoehoe ',strftime(threeback,format = '%B %d'),' through ',strftime(dayback,format = '%B %d, %Y'),sep='')
+> 
+> 	plot(x = days,
++ 	y = rep(NA,length(days)),
++ 	lwd = 3,
++ 	type = 'n',
++ 	col = 'blue',
++ 	main = title,
++ 	cex.main = 1.5,
++ 	xlab = '',
++ 	ylab = 'Soil Moisture (%)',
++ 	ylim = c(0,100),
++ 	las = 1)	
+> 	
+> 	abline(v = seq(threeback,now,'hours')[seq(1,length(seq(threeback,now,'hours')),12)], h = seq(0,100,20), col = 'gray')
+> 	abline(v = dayback, col = 'black',lwd = 2)
+> 	
+> 	R1 = 100*soil[which(temp$time == threeback):which(temp$time == now),paste('SoilMoisture_1_Avg',sep='')]
+> 	R2 = 100*soil[which(temp$time == threeback):which(temp$time == now),paste('SoilMoisture_2_Avg',sep='')]
+> 	R3 = 100*soil[which(temp$time == threeback):which(temp$time == now),paste('SoilMoisture_3_Avg',sep='')]
+> 	R4 = 100*soil[which(temp$time == threeback):which(temp$time == now),paste('SoilMoisture_4_Avg',sep='')]
+> 
+> 	cols = c('blue','red','forestgreen','darkmagenta')
+> 	lines(x = days, y = R1, lwd = 3, col = cols[1])
+> 	lines(x = days, y = R2, lwd = 3, col = cols[2])
+> 	lines(x = days, y = R3, lwd = 3, col = cols[3])
+> 	lines(x = days, y = R4, lwd = 3, col = cols[4])
+Error in xy.coords(x, y) : 'x' and 'y' lengths differ
+Calls: lines -> lines.default -> plot.xy -> xy.coords
+Execution halted

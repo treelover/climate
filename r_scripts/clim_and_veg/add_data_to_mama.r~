@@ -1,0 +1,84 @@
+
+#Libraries and functions
+#---------------------------------------#
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/climread.r')
+source('/home/adam/Dropbox/sapflow/r_scripts/fun/read_REST2.r')
+library(WriteXLS)
+#---------------------------------------#
+
+#Directories
+#---------------------------------------#
+cdir = '/home/adam/Dropbox/sapflow/clim_screened/'
+dates = '20140404'
+#---------------------------------------#
+
+#Load up the climate data
+#---------------------------------------#
+load(paste(cdir,'all_stations_',dates,'.Rdat',sep=''))
+#---------------------------------------#
+
+#Reading in the most recent climate data
+#---------------------------------------#
+clim1 = climread('/home/adam/Dropbox/sapflow/veg/mam/Mamalahoa_20140414.dat')
+clim2 = climread('/home/adam/Dropbox/sapflow/veg/mam/Mamalahoa_20140501.dat')
+clim3 = climread('/home/adam/Dropbox/sapflow/veg/mam/Mamalahoa_20140618.dat')
+clim4 = climread('/home/adam/Dropbox/sapflow/clim/Mamalahoa_MetData.dat')
+cnames = clim4[['header2']]
+newclim = rbind(clim1[['dat']],clim2[['dat']],clim3[['dat']],clim4[['dat']])
+colnames(newclim) = cnames
+#---------------------------------------#
+
+#Pulling out the mamalahoa entry in the climate data from before
+mama = slist[['mama']]
+
+#Rearraning new data to fit old data
+newclim = newclim[,-2]
+newclim[,8:11] = newclim[,c(8,10,9,11)]
+newclim[,15:16] = newclim[,c(16,15)]
+colnames(newclim) = colnames(mama)[1:18]
+
+#Cranking through the clear sky stuff
+#---------------------------------------------------------#
+rdir = '/home/adam/Dropbox/sapflow/clim/clear_sky_rad/raw/'
+rest = read_REST2(paste(rdir,'Mamalahoa_REST2_out.txt',sep=''))
+
+stat = newclim
+
+	#Matrix to hold the new data
+	temp = matrix(NA,ncol = 3, nrow = nrow(stat))
+	
+	#Making a compatable list of timestamps
+	stat.time = substr(stat$yyyy.mm.dd.hh.mm,6,16)
+	
+	rest.time = paste(sprintf(fmt = '%02d',rest[,'Mnth']),'-',sprintf(fmt = '%02d',rest[,'Day']),' ',sprintf(fmt = '%02d',floor(rest[,'HrLST'])),':',sprintf(fmt = '%02d',round((rest[,'HrLST']-floor(rest[,'HrLST']))*60)),sep='')                                    
+
+	for(j in 1:nrow(stat)){
+	
+		ID = which(rest.time == stat.time[j])
+		
+		if(length(ID) == 0){temp[j,3] = 0; next}
+		
+		
+		if(rest[ID,'Ghor'] <= 0){temp[j,] = c(rest[ID,'Ghor'],1-(stat[j,'SWup']/rest[ID,'Ghor']),0)}else{
+								 temp[j,] = c(rest[ID,'Ghor'],1-(stat[j,'SWup']/rest[ID,'Ghor']),1)}
+	}
+	
+	#Adding the column names
+	colnames(temp) = c('ClearSky','Cloud','DayFlag')
+	
+	#Removing any infinite values and NaNs
+	temp[which(is.infinite(temp) == T,arr.ind = T)] = NA
+	temp[which(is.nan(temp) == T,arr.ind = T)] = NA
+	
+	#Putting it all together
+	stat = cbind(stat,temp)
+
+#---------------------------------------------------------#
+
+final = rbind(mama,stat)
+
+save(list = 'final',file = '/home/adam/Dropbox/sapflow/veg/mam/mam_climdata.Rdat')
+
+plot(stat[,'RH_2'])
+
+
